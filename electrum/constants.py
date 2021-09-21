@@ -26,6 +26,7 @@
 import os
 import json
 
+BLOCKS_PER_CHUNK = 96
 from .util import inv_dict, all_subclasses
 from . import bitcoin
 
@@ -72,15 +73,15 @@ class BitcoinMainnet(AbstractNet):
 
     NET_NAME = "mainnet"
     TESTNET = False
-    WIF_PREFIX = 0x80
-    ADDRTYPE_P2PKH = 0
-    ADDRTYPE_P2SH = 5
-    SEGWIT_HRP = "bc"
+    WIF_PREFIX = 0x1c
+    ADDRTYPE_P2PKH = 0x55
+    ADDRTYPE_P2SH = 0x7A
+    SEGWIT_HRP = "lbc"
     BOLT11_HRP = SEGWIT_HRP
-    GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+    GENESIS = "9c89283ba0f3227f6c03b70216b9f665f0118d5e0fa729cedf4fb34d6a34f463"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
-    CHECKPOINTS = read_json('checkpoints.json', [])
+    CHECKPOINTS = read_json('somewhere.json', [])
     BLOCK_HEIGHT_FIRST_LIGHTNING_CHANNELS = 497000
 
     XPRV_HEADERS = {
@@ -99,12 +100,12 @@ class BitcoinMainnet(AbstractNet):
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
     XPUB_HEADERS_INV = inv_dict(XPUB_HEADERS)
-    BIP44_COIN_TYPE = 0
+    BIP44_COIN_TYPE = 140
     LN_REALM_BYTE = 0
     LN_DNS_SEEDS = [
-        'nodes.lightning.directory.',
-        'lseed.bitcoinstats.com.',
-        'lseed.darosior.ninja',
+        'dnsseed1.lbry.io.',
+        'dnsseed2.lbry.io.',
+        'dnsseed3.lbry.io',
     ]
 
 
@@ -115,9 +116,9 @@ class BitcoinTestnet(AbstractNet):
     WIF_PREFIX = 0xef
     ADDRTYPE_P2PKH = 111
     ADDRTYPE_P2SH = 196
-    SEGWIT_HRP = "tb"
+    SEGWIT_HRP = "tlbc"
     BOLT11_HRP = SEGWIT_HRP
-    GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
+    GENESIS = "9c89283ba0f3227f6c03b70216b9f665f0118d5e0fa729cedf4fb34d6a34f463"
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
     CHECKPOINTS = read_json('checkpoints_testnet.json', [])
@@ -149,9 +150,9 @@ class BitcoinTestnet(AbstractNet):
 class BitcoinRegtest(BitcoinTestnet):
 
     NET_NAME = "regtest"
-    SEGWIT_HRP = "bcrt"
+    SEGWIT_HRP = "blbc"
     BOLT11_HRP = SEGWIT_HRP
-    GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+    GENESIS = "9c89283ba0f3227f6c03b70216b9f665f0118d5e0fa729cedf4fb34d6a34f463"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
     LN_DNS_SEEDS = []
@@ -159,13 +160,13 @@ class BitcoinRegtest(BitcoinTestnet):
 
 class BitcoinSimnet(BitcoinTestnet):
 
-    NET_NAME = "simnet"
+    NET_NAME = "slbc"
     WIF_PREFIX = 0x64
     ADDRTYPE_P2PKH = 0x3f
     ADDRTYPE_P2SH = 0x7b
     SEGWIT_HRP = "sb"
     BOLT11_HRP = SEGWIT_HRP
-    GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
+    GENESIS = "9c89283ba0f3227f6c03b70216b9f665f0118d5e0fa729cedf4fb34d6a34f463"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
     LN_DNS_SEEDS = []

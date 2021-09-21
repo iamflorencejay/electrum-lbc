@@ -147,7 +147,7 @@ class BaseWizard(Logger):
             ('standard',  _("Standard wallet")),
             ('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
-            ('imported',  _("Import Bitcoin addresses or private keys")),
+            ('imported',  _("Import LBC addresses or private keys")),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
@@ -226,8 +226,8 @@ class BaseWizard(Logger):
 
     def import_addresses_or_keys(self):
         v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x, raise_on_error=True)
-        title = _("Import Bitcoin Addresses")
-        message = _("Enter a list of Bitcoin addresses (this will create a watching-only wallet), or a list of private keys.")
+        title = _("Import LBC Addresses")
+        message = _("Enter a list of LBC addresses (this will create a watching-only wallet), or a list of private keys.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
                              is_valid=v, allow_multi=True, show_wif_help=True)
 
@@ -417,7 +417,7 @@ class BaseWizard(Logger):
             # There is no general standard for HD multisig.
             # For legacy, this is partially compatible with BIP45; assumes index=0
             # For segwit, a custom path is used, as there is no standard at all.
-            default_choice_idx = 2
+            default_choice_idx = 0
             choices = [
                 ('standard',   'legacy multisig (p2sh)',            normalize_bip32_derivation("m/45'/0")),
                 ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
@@ -432,7 +432,7 @@ class BaseWizard(Logger):
                 default_choice_idx = chosen_idx
                 hide_choices = True
         else:
-            default_choice_idx = 2
+            default_choice_idx = 0
             choices = [
                 ('standard',    'legacy (p2pkh)',            bip44_derivation(0, bip43_purpose=44)),
                 ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),

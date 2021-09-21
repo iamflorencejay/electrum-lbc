@@ -86,7 +86,7 @@ from .amountedit import AmountEdit, BTCAmountEdit, FreezableLineEdit, FeerateEdi
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
-from .fee_slider import FeeSlider, FeeComboBox
+#from .fee_slider import FeeSlider, FeeComboBox
 from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
                    WindowModalDialog, ChoicesLayout, HelpLabel, Buttons,
                    OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
@@ -540,7 +540,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        name = "Electrum"
+        name = "Electrum-LBC"
         if constants.net.TESTNET:
             name += " " + constants.net.NET_NAME.capitalize()
         title = '%s %s  -  %s' % (name, ELECTRUM_VERSION,
@@ -559,8 +559,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         if self.wallet.is_watching_only():
             msg = ' '.join([
                 _("This wallet is watching-only."),
-                _("This means you will not be able to spend Bitcoins with it."),
-                _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
+                _("This means you will not be able to spend LBCs with it."),
+                _("Make sure you own the seed phrase or the private keys, before you request LBCs to be sent to this wallet.")
             ])
             self.show_warning(msg, title=_('Watch-only wallet'))
 
@@ -577,7 +577,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         msg = ''.join([
             _("You are in testnet mode."), ' ',
             _("Testnet coins are worthless."), '\n',
-            _("Testnet is separate from the main Bitcoin network. It is used for testing.")
+            _("Testnet is separate from the main LBRY network. It is used for testing.")
         ])
         cb = QCheckBox(_("Don't show this again."))
         cb_checked = False
@@ -791,11 +791,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def show_about(self):
         QMessageBox.about(self, "Electrum",
                           (_("Version")+" %s" % ELECTRUM_VERSION + "\n\n" +
-                           _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin.") + " " +
+                           _("Electrum-LBC's focus is speed, with low resource usage and simplifying LBRY Credits.") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are instant because it operates in conjunction with high-performance "
-                              "servers that handle the most complicated parts of the Bitcoin system.") + "\n\n" +
+                              "servers that handle the most complicated parts of the LBRY network system.") + "\n\n" +
                            _("Uses icons from the Icons8 icon pack (icons8.com).")))
 
     def show_bitcoin_paper(self):
@@ -885,7 +885,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         return self.config.format_amount(amount_sat, is_diff=is_diff, whitespaces=whitespaces)
 
     def format_amount_and_units(self, amount_sat, *, timestamp: int = None) -> str:
-        """Returns string with both bitcoin and fiat amounts, in desired units.
+        """Returns string with both LBC and fiat amounts, in desired units.
         E.g. 500_000 -> '0.005 BTC (191.42 EUR)'
         """
         text = self.config.format_amount_and_units(amount_sat)
@@ -1097,8 +1097,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             _('This information is seen by the recipient if you send them a signed payment request.'),
             '\n\n',
             _('For on-chain requests, the address gets reserved until expiration. After that, it might get reused.'), ' ',
-            _('The bitcoin address never expires and will always be part of this electrum wallet.'), ' ',
-            _('You can reuse a bitcoin address any number of times but it is not good for your privacy.'),
+            _('The LBC address never expires and will always be part of this electrum wallet.'), ' ',
+            _('You can reuse a LBC address any number of times but it is not good for your privacy.'),
             '\n\n',
             _('For Lightning requests, payments will not be accepted after the expiration.'),
         ])
@@ -1352,9 +1352,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payto_e = PayToEdit(self)
         self.payto_e.addPasteButton(self.app)
         msg = (_("Recipient of the funds.") + "\n\n"
-               + _("You may enter a Bitcoin address, a label from your list of contacts "
+               + _("You may enter a LBC address, a label from your list of contacts "
                    "(a list of completions will be proposed), "
-                   "or an alias (email-like address that forwards to a Bitcoin address)") + ". "
+                   "or an alias (email-like address that forwards to a LBC address)") + ". "
                + _("Lightning invoices are also supported.") + "\n\n"
                + _("You can also pay to many outputs in a single transaction, "
                    "specifying one output per line.") + "\n" + _("Format: address, amount") + "\n"
@@ -1511,7 +1511,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         for o in outputs:
             if o.scriptpubkey is None:
-                self.show_error(_('Bitcoin Address is None'))
+                self.show_error(_('LBC Address is None'))
                 return True
             if o.value is None:
                 self.show_error(_('Invalid Amount'))
@@ -2657,7 +2657,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         address  = address.text().strip()
         message = message.toPlainText().strip()
         if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Bitcoin address.'))
+            self.show_message(_('Invalid LBC address.'))
             return
         if self.wallet.is_watching_only():
             self.show_message(_('This is a watching-only wallet.'))

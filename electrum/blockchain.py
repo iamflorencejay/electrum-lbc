@@ -24,7 +24,8 @@ import os
 import threading
 import time
 from typing import Optional, Dict, Mapping, Sequence
-
+import hashlib
+import hmac
 from . import util
 from .bitcoin import hash_encode, int_to_hex, rev_hex
 from .crypto import sha256d
@@ -36,8 +37,10 @@ from .logging import get_logger, Logger
 
 _logger = get_logger(__name__)
 
-HEADER_SIZE = 80  # bytes
-MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+HEADER_SIZE = 112  # bytes
+MAX_TARGET = 0x0000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+GENESIS_BITS = 0x1f00ffff
+N_TARGET_TIMESPAN = 150
 
 
 class MissingHeader(Exception):
@@ -65,9 +68,10 @@ def deserialize_header(s: bytes, height: int) -> dict:
     h['version'] = hex_to_int(s[0:4])
     h['prev_block_hash'] = hash_encode(s[4:36])
     h['merkle_root'] = hash_encode(s[36:68])
-    h['timestamp'] = hex_to_int(s[68:72])
-    h['bits'] = hex_to_int(s[72:76])
-    h['nonce'] = hex_to_int(s[76:80])
+    h['claim_trie_root'] = hash_encode(s[68:100])
+    h['timestamp'] = hex_to_int(s[100:104])
+    h['bits'] = hex_to_int(s[104:108])
+    h['nonce'] = hex_to_int(s[108:112])
     h['block_height'] = height
     return h
 
@@ -78,10 +82,36 @@ def hash_header(header: dict) -> str:
         header['prev_block_hash'] = '00'*32
     return hash_raw_header(serialize_header(header))
 
+    def pow_hash_header(header: dict) -> str:
+    if header is None:
+        return '0' * 64
+    return hash_encode(PoWHash(bfh(serialize_header(header))))
+
+def sha256(x):
+    return hashlib.sha256(x).digest()
+
+def sha512(x):
+    return hashlib.sha512(x).digest()
+
+def ripemd160(x):
+    h = hashlib.new('ripemd160')
+    h.update(x)
+    return h.digest()
+
+def Hash(x):
+    return sha256(sha256(x))
+
 
 def hash_raw_header(header: str) -> str:
     return hash_encode(sha256d(bfh(header)))
 
+def PoWHash(x):
+
+    r = sha512(Hash(x))
+    r1 = ripemd160(r[:len(r) // 2])
+    r2 = ripemd160(r[len(r) // 2:])
+    r3 = Hash(r1 + r2)
+    return r3
 
 # key: blockhash hex at forkpoint
 # the chain at some key is the best chain that includes the given hash
@@ -291,35 +321,38 @@ class Blockchain(Logger):
         self._size = os.path.getsize(p)//HEADER_SIZE if os.path.exists(p) else 0
 
     @classmethod
-    def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
-        _hash = hash_header(header)
-        if expected_header_hash and expected_header_hash != _hash:
-            raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
+      def verify_header(self, header: dict, prev_hash: str, target: int, bits: int, expected_header_hash: str=None) -> None:
+        _hash = pow_hash_header(header)
+        if expected_header_hash:
+            _hash2 = hash_header(header)
+            if expected_header_hash != _hash2:
+                raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash2))
         if prev_hash != header.get('prev_block_hash'):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET:
             return
-        bits = cls.target_to_bits(target)
-        if bits != header.get('bits'):
-            raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
-        if block_hash_as_num > target:
-            raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
+#       bits = cls.target_to_bits(target)
+#       if bits != header.get('bits'):
+#           raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
+#       block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
+#       if block_hash_as_num > target:
+#           raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
 
     def verify_chunk(self, index: int, data: bytes) -> None:
         num = len(data) // HEADER_SIZE
         start_height = index * 2016
         prev_hash = self.get_hash(start_height - 1)
-        target = self.get_target(index-1)
+#        target = self.get_target(index-1)
         for i in range(num):
             height = start_height + i
+            header = self.read_header(height - 1)
             try:
                 expected_header_hash = self.get_hash(height)
             except MissingHeader:
                 expected_header_hash = None
             raw_header = data[i*HEADER_SIZE : (i+1)*HEADER_SIZE]
             header = deserialize_header(raw_header, index*2016 + i)
-            self.verify_header(header, prev_hash, target, expected_header_hash)
+            self.verify_header(header, prev_hash, 0, 0, expected_header_hash)
             prev_hash = hash_header(header)
 
     @with_lock
@@ -530,18 +563,78 @@ class Blockchain(Logger):
         bits = last.get('bits')
         target = self.bits_to_target(bits)
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = 14 * 24 * 60 * 60
-        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
-        nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
+#       nTargetTimespan = 14 * 24 * 60 * 60
+#       nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
+#       nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
+#       new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
         # not any target can be represented in 32 bits:
-        new_target = self.bits_to_target(self.target_to_bits(new_target))
-        return new_target
+#       new_target = self.bits_to_target(self.target_to_bits(new_target))
+#       return new_target
+          nTargetTimespan = 150
+        nModulatedTimespan = nTargetTimespan - (nActualTimespan - nTargetTimespan) / 8
+        nMinTimespan = nTargetTimespan - (nTargetTimespan / 8)
+        nMaxTimespan = nTargetTimespan + (nTargetTimespan / 2)
+        if nModulatedTimespan < nMinTimespan:
+            nModulatedTimespan = nMinTimespan
+        elif nModulatedTimespan > nMaxTimespan:
+            nModulatedTimespan = nMaxTimespan
+
+        bnOld = ArithUint256.SetCompact(bits)
+        bnNew = bnOld * nModulatedTimespan
+        # this doesn't work if it is nTargetTimespan even though that
+        # is what it looks like it should be based on reading the code
+        # in lbry.cpp
+        bnNew /= nModulatedTimespan
+        if bnNew > MAX_TARGET:
+            bnNew = ArithUint256(MAX_TARGET)
+        return bnNew.compact(), bnNew._value
+
+    def get_target2(self, index, last, chain='main'):
+
+        if index == -1:
+            return GENESIS_BITS, MAX_TARGET
+        if index == 0:
+            return GENESIS_BITS, MAX_TARGET
+        first = self.read_header(index-1)
+        assert last is not None, "Last shouldn't be none"
+        # bits to target
+        bits = last.get('bits')
+        # print_error("Last bits: ", bits)
+        self.check_bits(bits)
+
+        # new target
+        nActualTimespan = last.get('timestamp') - first.get('timestamp')
+        nTargetTimespan = N_TARGET_TIMESPAN
+        nModulatedTimespan = nTargetTimespan - (nActualTimespan - nTargetTimespan) / 8
+        nMinTimespan = nTargetTimespan - (nTargetTimespan / 8)
+        nMaxTimespan = nTargetTimespan + (nTargetTimespan / 2)
+        if nModulatedTimespan < nMinTimespan:
+            nModulatedTimespan = nMinTimespan
+        elif nModulatedTimespan > nMaxTimespan:
+            nModulatedTimespan = nMaxTimespan
+
+        bnOld = ArithUint256.SetCompact(bits)
+        bnNew = bnOld * nModulatedTimespan
+        # this doesn't work if it is nTargetTimespan even though that
+        # is what it looks like it should be based on reading the code
+        # in lbry.cpp
+        bnNew /= nModulatedTimespan
+        if bnNew > MAX_TARGET:
+            bnNew = ArithUint256(MAX_TARGET)
+        return bnNew.compact, bnNew._value
+
+    def check_bits(self, bits):
+        bitsN = (bits >> 24) & 0xff
+        assert 0x03 <= bitsN <= 0x1f, \
+            "First part of bits should be in [0x03, 0x1d], but it was {}".format(hex(bitsN))
+        bitsBase = bits & 0xffffff
+        assert 0x8000 <= bitsBase <= 0x7fffff, \
+            "Second part of bits should be in [0x8000, 0x7fffff] but it was {}".format(bitsBase)
 
     @classmethod
     def bits_to_target(cls, bits: int) -> int:
         bitsN = (bits >> 24) & 0xff
-        if not (0x03 <= bitsN <= 0x1d):
+        if not (0x03 <= bitsN <= 0x1f):
             raise Exception("First part of bits should be in [0x03, 0x1d]")
         bitsBase = bits & 0xffffff
         if not (0x8000 <= bitsBase <= 0x7fffff):
@@ -608,12 +701,13 @@ class Blockchain(Logger):
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
-            target = self.get_target(height // 2016 - 1)
+            target = self.get_target2(height, header)
         except MissingHeader:
             return False
         try:
-            self.verify_header(header, prev_hash, target)
+            self.verify_header(header, prev_hash, target, bits)
         except BaseException as e:
+            print(e)
             return False
         return True
 
@@ -668,3 +762,84 @@ def get_chains_that_contain_header(height: int, header_hash: str) -> Sequence[Bl
               if chain.check_hash(height=height, header_hash=header_hash)]
     chains = sorted(chains, key=lambda x: x.get_chainwork(), reverse=True)
     return chains
+
+
+class ArithUint256:
+    # https://github.com/bitcoin/bitcoin/blob/master/src/arith_uint256.cpp
+
+    __slots__ = '_value', '_compact'
+
+    def __init__(self, value: int) -> None:
+        self._value = value
+        self._compact: Optional[int] = None
+
+    @classmethod
+    def SetCompact(cls, nCompact):
+        return (ArithUint256.from_compact(nCompact))
+
+    @classmethod
+    def from_compact(cls, compact) -> 'ArithUint256':
+        size = compact >> 24
+        word = compact & 0x007fffff
+        if size <= 3:
+            return cls(word >> 8 * (3 - size))
+        else:
+            return cls(word << 8 * (size - 3))
+
+    @property
+    def value(self) -> int:
+        return self._value
+
+    @property
+    def compact(self) -> int:
+        if self._compact is None:
+            self._compact = self._calculate_compact()
+        return self._compact
+
+    @property
+    def negative(self) -> int:
+        return self._calculate_compact(negative=True)
+
+    @property
+    def bits(self) -> int:
+        """ Returns the position of the highest bit set plus one. """
+        bits = bin(self._value)[2:]
+        for i, d in enumerate(bits):
+            if d:
+                return (len(bits) - i) + 1
+        return 0
+
+    @property
+    def low64(self) -> int:
+        return self._value & 0xffffffffffffffff
+
+    def _calculate_compact(self, negative=False) -> int:
+        size = (self.bits + 7) // 8
+        if size <= 3:
+            compact = self.low64 << 8 * (3 - size)
+        else:
+            compact = ArithUint256(self._value >> 8 * (size - 3)).low64
+        # The 0x00800000 bit denotes the sign.
+        # Thus, if it is already set, divide the mantissa by 256 and increase the exponent.
+        if compact & 0x00800000:
+            compact >>= 8
+            size += 1
+        assert (compact & ~0x007fffff) == 0
+        assert size < 256
+        compact |= size << 24
+        if negative and compact & 0x007fffff:
+            compact |= 0x00800000
+        return compact
+
+    def __mul__(self, x):
+        # Take the mod because we are limited to an unsigned 256 bit number
+        return ArithUint256((self._value * x) % 2 ** 256)
+
+    def __truediv__(self, x):
+        return ArithUint256(int(self._value / x))
+
+    def __gt__(self, other):
+        return self._value > other
+
+    def __lt__(self, other):
+        return self._value < other
